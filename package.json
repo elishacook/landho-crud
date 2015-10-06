@@ -1,0 +1,26 @@
+{
+  "name": "landho-crud",
+  "version": "0.1.0",
+  "description": "Quickly create CRUD services with changefeeds using landho and rethinkdb",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "mocha --recursive tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elishacook/landho-crud"
+  },
+  "author": "Elisha Fitch-Cook <elisha@elishacook.com> (https://github.com/elishacook)",
+  "license": "MIT",
+  "dependencies": {
+    "feelings": "^0.1.2",
+    "rethinkdb": "^2.1.1",
+    "rethinkdb-init": "0.0.5",
+    "rethinkdbdash": "^2.1.9"
+  },
+  "devDependencies": {
+    "chai": "^3.0.0",
+    "landho": "^0.2.3",
+    "mocha": "^2.2.5"
+  }
+}

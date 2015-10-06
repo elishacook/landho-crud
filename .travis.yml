@@ -1,5 +1,0 @@
-language: node_js
-node_js:
- - "4.1"
-script: "npm run-script test"
-before_instal: "add-apt-repository ppa:rethinkdb/ppa && apt-get update && apt-get install rethinkdb"

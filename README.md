@@ -4,7 +4,7 @@ Create crud services using [landho](https://github.com/elishacook/landho), [reth
 
 There is a companion [client library](https://github.com/elishacook/landho-crud-client) that makes for a nice experience using these services.
 
-[![Build Status][1]][2] [![NPM version][3]][4]
+[![NPM version][1]][2]
 
 ## Install
 
@@ -97,7 +97,5 @@ crud.init().then(function ()
 
 See the tests for more details.
 
-[1]: https://secure.travis-ci.org/elishacook/landho-crud.svg
-[2]: https://travis-ci.org/elishacook/landho-crud
-[3]: https://badge.fury.io/js/landho-crud.svg
-[4]: https://badge.fury.io/js/landho-crud
+[1]: https://badge.fury.io/js/landho-crud.svg
+[2]: https://badge.fury.io/js/landho-crud

@@ -2,3 +2,4 @@ language: node_js
 node_js:
  - "4.1"
 script: "npm run-script test"
+before_instal: "sudo add-apt-repository ppa:rethinkdb/ppa && sudo apt-get update && sudo apt-get install rethinkdb"

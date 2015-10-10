@@ -60,7 +60,7 @@ crud.init().then(function ()
             record.created // Tue Oct 06 2015 14:55:55 GMT-0400 (EDT)
             record.modified // Tue Oct 06 2015 14:55:55 GMT-0400 (EDT)
             
-            // There's also get(), update(), find() and remove() as you might expect.
+            // There's also get(), update(), patch(), find() and remove() as you might expect.
             
             robbers.get({ data: { id: 'some-long-id' } }, function (err, record)
             {
@@ -86,7 +86,7 @@ crud.init().then(function ()
                 })
             })
             
-            robbers.remove({ data: { id: record.id } }, function (err, deleted_record)
+            robbers.delete({ data: { id: record.id } }, function (err, deleted_record)
             {
                 // Oh no! I got deleted!!
             })

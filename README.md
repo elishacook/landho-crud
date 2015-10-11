@@ -86,7 +86,7 @@ crud.init().then(function ()
                 })
             })
             
-            robbers.delete({ data: { id: record.id } }, function (err, deleted_record)
+            robbers.delete({ data: { id: record.id, version: record.version } }, function (err, deleted_record)
             {
                 // Oh no! I got deleted!!
             })

@@ -10,7 +10,6 @@ var r = require('rethinkdb'),
         db: 'landho_crud_test'
     },
     jiff = require('jiff'),
-    jiff_rebase = require('jiff/lib/rebase'),
     shallow_copy = require('../lib/shallow-copy'),
     monsters = null
 
@@ -104,14 +103,14 @@ describe('Table', function ()
                     updated_doc.height = 1.7
                     return monsters.update(updated_doc, '456')
                 })
-                .then(function (patched_doc)
+                .then(function (result)
                 {
-                    expect(patched_doc.id).to.equal(orig_doc.id)
-                    expect(patched_doc.version).to.equal(orig_doc.version + 1)
-                    expect(patched_doc.height).to.equal(1.7)
+                    expect(result.document.id).to.equal(orig_doc.id)
+                    expect(result.document.version).to.equal(orig_doc.version + 1)
+                    expect(result.document.height).to.equal(1.7)
                     
                     return get_db().table('monsters_ops')
-                            .getAll(patched_doc.id, { index: 'docid' })
+                            .getAll(result.document.id, { index: 'docid' })
                             .run()
                 })
                 .then(function (ops)
@@ -145,14 +144,14 @@ describe('Table', function ()
                     patch = jiff.diff(doc, new_doc)
                     return monsters.patch(doc.id, doc.version, patch, '456')
                 })
-                .then(function (patched_doc)
+                .then(function (result)
                 {
-                    expect(patched_doc.id).to.equal(orig_doc.id)
-                    expect(patched_doc.version).to.equal(orig_doc.version + 1)
-                    expect(patched_doc.height).to.equal(1.7)
+                    expect(result.document.id).to.equal(orig_doc.id)
+                    expect(result.document.version).to.equal(orig_doc.version + 1)
+                    expect(result.document.height).to.equal(1.7)
                     
                     return get_db().table('monsters_ops')
-                            .getAll(patched_doc.id, { index: 'docid' })
+                            .getAll(result.document.id, { index: 'docid' })
                             .run()
                 })
                 .then(function (ops)
@@ -172,56 +171,36 @@ describe('Table', function ()
                 })
     })
     
-    it('can rebase a patch', function ()
+    it('resolves with missed patches if there is a conflict when patching', function ()
     {
         var orig_doc = null,
-            patch_a = null,
-            patch_b = null
-        
+            patch = null
+            
         return monsters
-            .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-            .then(function (doc)
-            {
-                orig_doc = doc
-                var update_a = shallow_copy(orig_doc)
-                update_a.scariness = 0.2
-                patch_a = jiff.diff(orig_doc, update_a)
-                return monsters.patch(orig_doc.id, orig_doc.version, patch_a, '444')
-            })
-            .then(function (doc)
-            {
-                var update_b = shallow_copy(orig_doc)
-                update_b.height = 0.02
-                patch_b = jiff.diff(orig_doc, update_b)
-                return monsters.patch(orig_doc.id, orig_doc.version, patch_b, '555')
-            })
-            .then(function (updated_doc)
-            {
-                expect(updated_doc.id).to.equal(orig_doc.id)
-                expect(updated_doc.version).to.equal(3)
-                expect(updated_doc.scariness).to.equal(0.2)
-                expect(updated_doc.height).to.equal(0.02)
-                
-                return get_db()
-                    .table('monsters_ops')
-                    .between([orig_doc.id, 1], [orig_doc.id, db.r.maxval], { index: 'docid_version' })
-                    .then(function (ops)
-                    {
-                        ops = ops.sort(function (a, b)
-                        {
-                            return a.version - b.version
-                        })
-                        expect(ops[0].version).to.equal(1)
-                        expect(ops[0].user_id).to.equal('444')
-                        expect(ops[0].patch).to.deep.equal(patch_a)
-                        
-                        var patch_c = jiff_rebase([patch_a], patch_b)
-                        
-                        expect(ops[1].version).to.equal(2)
-                        expect(ops[1].user_id).to.equal('555')
-                        expect(ops[1].patch).to.deep.equal(patch_c)
-                    })
-            })
+                .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
+                .then(function (doc)
+                {
+                    orig_doc = doc
+                    var new_doc = shallow_copy(doc)
+                    new_doc.height = 1.7
+                    patch = jiff.diff(doc, new_doc)
+                    return monsters.patch(doc.id, doc.version, patch, '456')
+                })
+                .then(function ()
+                {
+                    var new_doc = shallow_copy(orig_doc)
+                    new_doc.scariness = 3
+                    var patch = jiff.diff(orig_doc, new_doc)
+                    return monsters.patch(orig_doc.id, orig_doc.version, patch, '789')
+                })
+                .then(function (result)
+                {
+                    expect(result.conflict).to.be.true
+                    expect(result.ops.length).to.equal(1)
+                    expect(result.ops[0].user_id).to.equal('456')
+                    expect(result.ops[0].version).to.equal(1)
+                    expect(result.ops[0].patch).to.deep.equal(patch)
+                })
     })
     
     it('can delete a record', function ()
@@ -233,13 +212,13 @@ describe('Table', function ()
             .then(function (doc)
             {
                 orig_doc = doc
-                return monsters.delete(doc.id, '555')
+                return monsters.delete(doc.id, doc.version, '555')
             })
-            .then(function (doc)
+            .then(function (result)
             {
-                expect(doc).to.deep.equal(orig_doc)
+                expect(result).to.deep.equal({ document: orig_doc })
                 return get_db().table('monsters_ops')
-                    .getAll(doc.id, {index: 'docid'})
+                    .getAll(result.document.id, {index: 'docid'})
                     .run()
                     .then(function (ops)
                     {
@@ -371,12 +350,12 @@ describe('Table', function ()
                 
                 return monsters.patch(orig_doc.id, orig_doc.version, patch_a)
             })
-            .then(function (updated_doc)
+            .then(function (result)
             {
-                var update_b = shallow_copy(updated_doc)
+                var update_b = shallow_copy(result.document)
                 update_b.height = 1.4
-                patch_b = jiff.diff(updated_doc, update_b)
-                return monsters.patch(updated_doc.id, updated_doc.version, patch_b)
+                patch_b = jiff.diff(result.document, update_b)
+                return monsters.patch(result.document.id, result.document.version, patch_b)
             })
             .then(function ()
             {
@@ -447,11 +426,11 @@ describe('Table', function ()
                     })
                     .then(function ()
                     {
-                        return monsters.delete(docs[5].id)
+                        return monsters.delete(docs[5].id, docs[5].version)
                     })
                     .then(function ()
                     {
-                        return monsters.delete(docs[0].id)
+                        return monsters.delete(docs[0].id, docs[0].version)
                     })
             })
             .then(function ()

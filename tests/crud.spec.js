@@ -185,7 +185,7 @@ describe('landho-crud', function ()
             })
         })
         
-        it('calls the table update method when validation passes', function (done)
+        it('calls the table delete method when validation passes', function (done)
         {
             var service = crud(
             {
@@ -196,12 +196,12 @@ describe('landho-crud', function ()
             
             service.table.delete = sinon.stub().resolves('an updated foo')
             
-            service.delete({ data: { id: '666' }, user: { id: '123' } }, function (err, result)
+            service.delete({ data: { id: '666', version: 7 }, user: { id: '123' } }, function (err, result)
             {
                 expect(err).to.be.null
                 expect(result).to.equal('an updated foo')
                 expect(service.table.delete).to.have.been.calledOnce
-                expect(service.table.delete).to.have.been.calledWith('666', '123')
+                expect(service.table.delete).to.have.been.calledWith('666', 7, '123')
                 done()
             })
         })
@@ -217,7 +217,7 @@ describe('landho-crud', function ()
             
             service.table.delete = sinon.stub().rejects('AAAARGH!')
             
-            service.delete({ data: { id: '666' }, user: { id: '123' } }, function (err, result)
+            service.delete({ data: { id: '666', version: 2 }, user: { id: '123' } }, function (err, result)
             {
                 expect(err.message).to.equal('AAAARGH!')
                 done()

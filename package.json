@@ -1,7 +1,7 @@
 {
   "name": "landho-crud",
-  "version": "0.3.1",
-  "description": "Quickly create CRUD services with changefeeds using landho and rethinkdb",
+  "version": "0.4.0",
+  "description": "Quickly create landho services with data synchronization features",
   "main": "lib/index.js",
   "scripts": {
     "test": "mocha --recursive tests"
@@ -15,17 +15,18 @@
   "dependencies": {
     "feelings": "^0.1.2",
     "jiff": "^0.7.2",
+    "jsondiffpatch": "^0.1.37",
+    "landho": "^0.3.0",
     "rethinkdb": "^2.1.1",
     "rethinkdb-init": "0.0.5",
     "rethinkdbdash": "^2.1.9"
   },
   "devDependencies": {
+    "async": "^1.4.2",
     "bluebird": "^2.10.2",
     "chai": "^3.0.0",
-    "landho": "^0.2.4",
     "mocha": "^2.2.5",
     "sinon": "^1.17.1",
-    "sinon-as-promised": "^4.0.0",
     "sinon-chai": "^2.8.0"
   }
 }

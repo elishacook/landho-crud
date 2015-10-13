@@ -4,15 +4,32 @@ var r = require('rethinkdb'),
     db = require('../lib/db'),
     Table = require('../lib/table'),
     Promise = require('bluebird'),
+    async = require('async'),
     db_options = {
         host: 'localhost',
         port: 28015,
+        
         db: 'landho_crud_test'
     },
-    jiff = require('jiff'),
-    shallow_copy = require('../lib/shallow-copy'),
-    monsters = null
+    copy = require('../lib/shallow-copy'),
+    monsters = null,
+    SyncDocument = require('../lib/sync-document')
 
+function handle_error(err)
+{
+    if (err)
+    {
+        throw err
+    }
+}
+
+function sort_monsters(monsters)
+{
+    return monsters.sort(function (a, b)
+    {
+        return (a.name > b.name ? 1 : -1)
+    })
+}
 
 function setup()
 {
@@ -42,410 +59,467 @@ describe('Table', function ()
     before(setup)
     beforeEach(clear_tables)
     
-    it('adds tables to db', function ()
+    it('adds table to db', function ()
     {
         db.tables = []
         var foos = new Table('foos', ['things', 'stuff'])
         
-        expect(db.tables.length).to.equal(2)
+        expect(db.tables.length).to.equal(1)
         
         expect(db.tables[0].name).to.equal('foos')
-        expect(db.tables[0].indexes.length).to.equal(3)
+        expect(db.tables[0].indexes.length).to.equal(2)
         expect(db.tables[0].indexes[0]).to.equal('things')
         expect(db.tables[0].indexes[1]).to.equal('stuff')
-        expect(db.tables[0].indexes[2].name).to.equal('id_version')
-        expect(db.tables[0].indexes[2].indexFunction[0].args[1].data).to.equal('id')
-        expect(db.tables[0].indexes[2].indexFunction[1].args[1].data).to.equal('version')
-        
-        expect(db.tables[1].name).to.equal('foos_ops')
-        expect(db.tables[1].indexes.length).to.equal(2)
-        expect(db.tables[1].indexes[0]).to.equal('docid')
-        expect(db.tables[1].indexes[1].name).to.equal('docid_version')
-        expect(db.tables[1].indexes[1].indexFunction[0].args[1].data).to.equal('docid')
-        expect(db.tables[1].indexes[1].indexFunction[1].args[1].data).to.equal('version')
     })
     
-    it('can create a new record', function ()
+    it('can create a new record', function (done)
     {
-        return monsters
-            .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-            .then(function (doc)
+        return monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, doc)
             {
+                handle_error(err)
                 expect(doc.id).to.not.be.undefined
                 expect(doc.name).to.equal('werewolf')
                 expect(doc.height).to.equal(1.2)
                 expect(doc.scariness).to.equal(7.3256)
-                
-                return get_db().table('monsters_ops')
-                        .getAll(doc.id, {index:'docid'})
-                        .run()
-                        .then(function (ops)
-                        {
-                            expect(ops.length).to.equal(1)
-                            expect(ops[0].docid).to.equal(doc.id)
-                            expect(ops[0].when).to.be.instanceof(Date)
-                            expect(ops[0].user_id).to.equal('123')
-                            expect(ops[0].created).to.equal(1)
-                            expect(ops[0].document).to.deep.equal(doc)
-                        })
-            })    
+                done()
+            })  
     })
     
-    it('can update a record', function ()
+    it('can update a record', function (done)
     {
-        var orig_doc = null
-            
-        return monsters
-                .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-                .then(function (doc)
-                {
-                    orig_doc = doc
-                    var updated_doc = shallow_copy(doc)
-                    updated_doc.height = 1.7
-                    return monsters.update(updated_doc, '456')
-                })
-                .then(function (result)
-                {
-                    expect(result.document.id).to.equal(orig_doc.id)
-                    expect(result.document.version).to.equal(orig_doc.version + 1)
-                    expect(result.document.height).to.equal(1.7)
-                    
-                    return get_db().table('monsters_ops')
-                            .getAll(result.document.id, { index: 'docid' })
-                            .run()
-                })
-                .then(function (ops)
-                {
-                    ops = ops.sort(function (a, b)
-                    {
-                        return a.version - b.version
-                    })
-                    
-                    expect(ops.length).to.equal(2)
-                    expect(ops[0].created).to.equal(1)
-                    expect(ops[1].docid).to.equal(orig_doc.id)
-                    expect(ops[1].version).to.equal(1)
-                    expect(ops[1].when).to.be.instanceof(Date)
-                    expect(ops[1].user_id).to.equal('456')
-                })
-    })
-    
-    it('can patch a record', function ()
-    {
-        var orig_doc = null,
-            patch = null
-            
-        return monsters
-                .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-                .then(function (doc)
-                {
-                    orig_doc = doc
-                    var new_doc = shallow_copy(doc)
-                    new_doc.height = 1.7
-                    patch = jiff.diff(doc, new_doc)
-                    return monsters.patch(doc.id, doc.version, patch, '456')
-                })
-                .then(function (result)
-                {
-                    expect(result.document.id).to.equal(orig_doc.id)
-                    expect(result.document.version).to.equal(orig_doc.version + 1)
-                    expect(result.document.height).to.equal(1.7)
-                    
-                    return get_db().table('monsters_ops')
-                            .getAll(result.document.id, { index: 'docid' })
-                            .run()
-                })
-                .then(function (ops)
-                {
-                    ops = ops.sort(function (a, b)
-                    {
-                        return a.version - b.version
-                    })
-                    
-                    expect(ops.length).to.equal(2)
-                    expect(ops[0].created).to.equal(1)
-                    expect(ops[1].docid).to.equal(orig_doc.id)
-                    expect(ops[1].version).to.equal(1)
-                    expect(ops[1].when).to.be.instanceof(Date)
-                    expect(ops[1].user_id).to.equal('456')
-                    expect(ops[1].patch).to.deep.equal(patch)
-                })
-    })
-    
-    it('resolves with missed patches if there is a conflict when patching', function ()
-    {
-        var orig_doc = null,
-            patch = null
-            
-        return monsters
-                .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-                .then(function (doc)
-                {
-                    orig_doc = doc
-                    var new_doc = shallow_copy(doc)
-                    new_doc.height = 1.7
-                    patch = jiff.diff(doc, new_doc)
-                    return monsters.patch(doc.id, doc.version, patch, '456')
-                })
-                .then(function ()
-                {
-                    var new_doc = shallow_copy(orig_doc)
-                    new_doc.scariness = 3
-                    var patch = jiff.diff(orig_doc, new_doc)
-                    return monsters.patch(orig_doc.id, orig_doc.version, patch, '789')
-                })
-                .then(function (result)
-                {
-                    expect(result.conflict).to.be.true
-                    expect(result.ops.length).to.equal(1)
-                    expect(result.ops[0].user_id).to.equal('456')
-                    expect(result.ops[0].version).to.equal(1)
-                    expect(result.ops[0].patch).to.deep.equal(patch)
-                })
-    })
-    
-    it('can delete a record', function ()
-    {
-        var orig_doc = null
-        
-        return monsters
-            .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-            .then(function (doc)
+        return monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, orig_doc)
             {
-                orig_doc = doc
-                return monsters.delete(doc.id, doc.version, '555')
-            })
-            .then(function (result)
-            {
-                expect(result).to.deep.equal({ document: orig_doc })
-                return get_db().table('monsters_ops')
-                    .getAll(result.document.id, {index: 'docid'})
-                    .run()
-                    .then(function (ops)
-                    {
-                        ops = ops.sort(function (a, b)
-                        {
-                            return a.version - b.version
-                        })
-                        
-                        expect(ops.length).to.equal(2)
-                        expect(ops[0].version).to.equal(0)
-                        expect(ops[0].created).to.equal(1)
-                        expect(ops[1].version).to.equal(1)
-                        expect(ops[1].when).to.be.instanceof(Date)
-                        expect(ops[1].user_id).to.equal('555')
-                        expect(ops[1].deleted).to.equal(1)
-                    })
-            })
+                handle_error(err)
+                var updated_doc = copy(orig_doc)
+                updated_doc.height = 1.7
+                monsters.update(updated_doc, function (err, doc)
+                {
+                    handle_error(err)
+                    expect(doc.id).to.equal(orig_doc.id)
+                    expect(doc.height).to.equal(1.7)
+                    done()
+                })
+            }
+        )
     })
     
-    it('can return a single record', function ()
+    it('can delete a record', function (done)
     {
-        var werewolf = null
-        
-        return monsters
-            .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 }, '123')
-            .then(function (doc)
+        return monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, orig_doc)
             {
-                werewolf = doc
-                return monsters.create({ name: 'kraken', height: 14, scariness: 82.9 }, '123')
-            })
-            .then(function ()
-            {
-                monsters.get(werewolf.id).then(function (doc)
+                handle_error(err)
+                monsters.delete(orig_doc.id, function (err, doc)
                 {
+                    handle_error(err)
+                    expect(doc).to.deep.equal(orig_doc)
+                    done()
+                })
+            }
+        )
+    })
+    
+    it('can return a single record', function (done)
+    {
+        return monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, werewolf)
+            {
+                handle_error(err)
+                monsters.get(werewolf.id, function (err, doc)
+                {
+                    handle_error(err)
                     expect(doc).to.deep.equal(werewolf)
+                    done()
                 })
-            })
+            }
+        )
     })
     
-    it('can get a list of indexes', function ()
+    it('can get a list of indexes', function (done)
     {
-        return monsters.indexes().then(function (indexes)
+        return monsters.indexes(function (err, indexes)
         {
+            handle_error(err)
             expect(indexes).to.have.members(['height', 'scariness'])
+            done()
         })
     })
     
-    it('can lookup items by indexed value', function ()
+    it('can lookup items by indexed value', function (done)
     {
-        return Promise.all([
-            monsters.create({ name: 'tiny bat', height: 0.083, scariness: 0.01 }),
-            monsters.create({ name: 'large bat', height: 0.3, scariness: 0.1 }),
-            monsters.create({ name: 'minotaur', height: 1.6, scariness: 6 }),
-            monsters.create({ name: 'kishi', height: 1.6, scariness: 7 }),
-            monsters.create({ name: 'kraken', height: 14, scariness: 82.9 }),
-            monsters.create({ name: 'werekraken', height: 14, scariness: 1000.002 })
-        ])
-        .then(function ()
+        async.parallel([
+            monsters.create.bind(monsters, { name: 'tiny bat', height: 0.083, scariness: 0.01 }),
+            monsters.create.bind(monsters, { name: 'large bat', height: 0.3, scariness: 0.1 }),
+            monsters.create.bind(monsters, { name: 'minotaur', height: 1.6, scariness: 6 }),
+            monsters.create.bind(monsters, { name: 'kishi', height: 1.6, scariness: 7 }),
+            monsters.create.bind(monsters, { name: 'kraken', height: 14, scariness: 82.9 }),
+            monsters.create.bind(monsters, { name: 'werekraken', height: 14, scariness: 1000.002 })
+        ], function (err, results)
         {
-            return monsters
-                .find({ value: 14, index: 'height' })
-                .then(function (docs)
+            handle_error(err)
+            monsters.find(
+                { value: 14, index: 'height' },
+                function (err, docs)
                 {
+                    handle_error(err)
                     var names = docs.map(function (doc)
                     {
                         return doc.name
                     }).sort()
                     
-                    expect(names).to.deep.equal(['kraken', 'werekraken'])
-                })
+                    expect(names).to.deep.equal(['kraken', 'werekraken'])   
+                    done()
+                }
+            )
         })
     })
     
-    it('can lookup items by a range of indexed values', function ()
+    it('can lookup items by a range of indexed values', function (done)
     {
-        return Promise.all([
-            monsters.create({ name: 'tiny bat', height: 0.083, scariness: 0.01 }),
-            monsters.create({ name: 'large bat', height: 0.3, scariness: 0.1 }),
-            monsters.create({ name: 'minotaur', height: 1.6, scariness: 6 }),
-            monsters.create({ name: 'kishi', height: 1.6, scariness: 7 }),
-            monsters.create({ name: 'kraken', height: 14, scariness: 82.9 }),
-            monsters.create({ name: 'werekraken', height: 14, scariness: 1000.002 })
-        ])
-        .then(function ()
+        async.parallel([
+            monsters.create.bind(monsters, { name: 'tiny bat', height: 0.083, scariness: 0.01 }),
+            monsters.create.bind(monsters, { name: 'large bat', height: 0.3, scariness: 0.1 }),
+            monsters.create.bind(monsters, { name: 'minotaur', height: 1.6, scariness: 6 }),
+            monsters.create.bind(monsters, { name: 'kishi', height: 1.6, scariness: 7 }),
+            monsters.create.bind(monsters, { name: 'kraken', height: 14, scariness: 82.9 }),
+            monsters.create.bind(monsters, { name: 'werekraken', height: 14, scariness: 1000.002 })
+        ], 
+        function (err, results)
         {
-            return monsters
-                .find({ start: 4, end: 20, index: 'scariness' })
-                .then(function (docs)
+            handle_error(err)
+            monsters.find(
+                { start: 4, end: 20, index: 'scariness' },
+                function (err, docs)
                 {
+                    handle_error(err)
                     var names = docs.map(function (doc)
                     {
                         return doc.name
                     }).sort()
                     
                     expect(names).to.deep.equal(['kishi', 'minotaur'])
-                })
+                    done()
+                }
+            )
         })
     })
-
-    it('can watch changes on a single item', function ()
+    
+    it('can watch changes on a single item', function (done)
     {
-        var ops = [],
-            orig_doc = null,
-            patch_a = null,
-            patch_b = null
-        
-        return monsters
-            .create({ name: 'werewolf', height: 1.2, scariness: 7.3256 })
-            .then(function (doc)
+        monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, doc)
             {
-                orig_doc = doc
-                return monsters.watch_one(doc.id)
-            })
-            .then(function (cursor)
-            {
-                cursor.each(function (err, op)
+                handle_error(err)
+                monsters.get_and_watch(doc.id, function (err, channel)
                 {
-                    if (err)
-                    {
-                        throw err
-                    }
+                    handle_error(err)
                     
-                    ops.push(op)
+                    var orig_doc = null,
+                        updated_doc = null,
+                        history = [],
+                        channel = channel.end,
+                        finish = function ()
+                        {
+                            expect(history.length).to.equal(3)
+                            expect(history[0][0]).to.equal('initial')
+                            expect(history[0][1]).to.deep.equal(orig_doc)
+                            expect(history[1][0]).to.equal('update')
+                            expect(history[1][1]).to.deep.equal(updated_doc)
+                            expect(history[2][0]).to.equal('delete')
+                            expect(history[2][1]).to.deep.equal(updated_doc)
+                            
+                            channel.close()
+                            done()
+                        }
+                    
+                    channel.on('error', handle_error)
+                    
+                    channel.on('initial', function (doc)
+                    {
+                        orig_doc = copy(doc)
+                        history.push(['initial', orig_doc])
+                        doc.height = 1.7
+                        monsters.update(doc, function (err, doc)
+                        {
+                            handle_error(err)
+                            updated_doc = doc
+                        })
+                    })
+                    
+                    channel.on('update', function (doc)
+                    {
+                        history.push(['update', doc])
+                        monsters.delete(doc.id, handle_error)
+                    })
+                    
+                    channel.on('delete', function (doc)
+                    {
+                        history.push(['delete', doc])
+                        setTimeout(finish, 20)
+                    })
                 })
-                
-                var update_a = shallow_copy(orig_doc)
-                update_a.height = 1.4
-                patch_a = jiff.diff(orig_doc, update_a)
-                
-                return monsters.patch(orig_doc.id, orig_doc.version, patch_a)
-            })
-            .then(function (result)
-            {
-                var update_b = shallow_copy(result.document)
-                update_b.height = 1.4
-                patch_b = jiff.diff(result.document, update_b)
-                return monsters.patch(result.document.id, result.document.version, patch_b)
-            })
-            .then(function ()
-            {
-                expect(ops.length).to.equal(2)
-                expect(ops[0].docid).to.equal(orig_doc.id)
-                expect(ops[0].version).to.equal(1)
-                expect(ops[0].patch).to.deep.equal(patch_a)
-                expect(ops[1].docid).to.equal(orig_doc.id)
-                expect(ops[1].version).to.equal(2)
-                expect(ops[1].patch).to.deep.equal(patch_b)
-            })
+            }
+        )
     })
     
-    it('can watch changes on multiple items', function ()
+    it('can watch changes on multiple items', function (done)
     {
-        var ops = [],
-            docs = [],
-            push_doc = docs.push.bind(docs),
-            patch_4 = null
-        
-        return monsters
-            .create({ name: 'tiny bat', height: 0.083, scariness: 0.01 }).then(push_doc)
-            .then(function ()
-            {
-                return monsters.create({ name: 'large bat', height: 0.3, scariness: 0.1 }).then(push_doc)
-            })
-            .then(function ()
-            {
-                return monsters.create({ name: 'minotaur', height: 1.6, scariness: 6 }).then(push_doc)
-            })
-            .then(function ()
-            {
-                return monsters.create({ name: 'kishi', height: 1.6, scariness: 7 }).then(push_doc)
-            })
-            .then(function ()
-            {
-                return monsters.create({ name: 'kraken', height: 14, scariness: 82.9 }).then(push_doc)
-            })
-            .then(function ()
-            {
-                return monsters.create({ name: 'werekraken', height: 14, scariness: 1000.002 }).then(push_doc)
-            })
-            .then(function ()
-            {
-                return monsters.watch({ value: 14, index: 'height' })
-            })
-            .then(function (cursor)
-            {
-                cursor.each(function (err, op)
+        async.parallel([
+            monsters.create.bind(monsters, { name: 'tiny bat', height: 0.083, scariness: 0.01 }),
+            monsters.create.bind(monsters, { name: 'large bat', height: 0.3, scariness: 0.1 }),
+            monsters.create.bind(monsters, { name: 'minotaur', height: 1.6, scariness: 6 }),
+            monsters.create.bind(monsters, { name: 'kishi', height: 1.6, scariness: 7 }),
+            monsters.create.bind(monsters, { name: 'kraken', height: 14, scariness: 82.9 }),
+            monsters.create.bind(monsters, { name: 'werekraken', height: 14, scariness: 1000.002 })
+        ], function (err, result)
+        {
+            handle_error(err)
+            monsters.find_and_watch(
+                { start: 14, end: 20, index: 'height' },
+                function (err, channel)
                 {
-                    if (err)
-                    {
-                        throw err
-                    }
+                    handle_error(err)
                     
-                    ops.push(op)
-                })
-                
-                var updated_4 = shallow_copy(docs[4])
-                updated_4.scariness = 0.5
-                patch_4 = jiff.diff(docs[4], updated_4)
-                
-                return monsters
-                    .patch(updated_4.id, updated_4.version, patch_4)
-                    .then(function ()
+                    var channel = channel.end
+                    channel.on('error', handle_error)
+                    
+                    var history = []
+                    ;['insert', 'update', 'delete'].forEach(function (k)
                     {
-                        return monsters.create({ name: 'basilisk', height: 14, scariness: 37 }).then(push_doc)
+                        channel.on(k, function (value)
+                        {
+                            history.push([k, value])
+                        })
                     })
-                    .then(function ()
+                    
+                    channel.on('initial', function (original_docs)
                     {
-                        return monsters.delete(docs[5].id, docs[5].version)
+                        history.push(['initial', sort_monsters(original_docs)])
+                        
+                        var update_one = copy(original_docs[0]),
+                            update_two = copy(original_docs[1])
+                        
+                        update_one.scariness = 666
+                        update_two.height = 1
+                        
+                        async.series([
+                            monsters.create.bind(monsters, { name: 'not a monster', height: 0.0023, scariness: 0 }),
+                            monsters.create.bind(monsters, { name: 'impalerbot', height: 17, scariness: 77 }),
+                            monsters.update.bind(monsters, update_one),
+                            monsters.update.bind(monsters, update_two),
+                            monsters.delete.bind(monsters, update_one.id)
+                        ],
+                        function (err)
+                        {
+                            handle_error(err)
+                            
+                            expect(history.length).to.equal(5)
+                            
+                            expect(history[0][0]).to.equal('initial')
+                            expect(history[0][1].length).to.equal(2)
+                            expect(history[0][1][0].name).to.equal('kraken')
+                            expect(history[0][1][1].name).to.equal('werekraken')
+                            
+                            expect(history[1][0]).to.equal('insert')
+                            expect(history[1][1].name).to.equal('impalerbot')
+                            
+                            expect(history[2][0]).to.equal('update')
+                            expect(history[2][1].name).to.equal(update_one.name)
+                            expect(history[2][1].scariness).to.equal(update_one.scariness)
+                            
+                            expect(history[3][0]).to.equal('delete')
+                            expect(history[3][1].name).to.equal(update_two.name)
+                            
+                            expect(history[4][0]).to.equal('delete')
+                            expect(history[4][1].name).to.equal(update_one.name)
+                            
+                            channel.close()
+                            done()
+                        })
                     })
-                    .then(function ()
-                    {
-                        return monsters.delete(docs[0].id, docs[0].version)
-                    })
-            })
-            .then(function ()
+                }
+            )
+        })
+    })
+    
+    it('can sync with a single item', function (done)
+    {
+        monsters.create(
+            { name: 'werewolf', height: 1.2, scariness: 7.3256 },
+            function (err, doc)
             {
-                expect(ops.length).to.equal(3)
-                expect(ops[0].docid).to.equal(docs[4].id)
-                expect(ops[0].version).to.equal(docs[4].version)
-                expect(ops[0].patch).to.deep.equal(patch_4)
-                expect(ops[1].docid).to.equal(docs[6].id)
-                expect(ops[1].version).to.equal(0)
-                expect(ops[1].created).to.equal(1)
-                expect(ops[2].docid).to.equal(docs[5].id)
-                expect(ops[2].version).to.equal(docs[5].version)
-                expect(ops[2].deleted).to.equal(1)
-            })
+                handle_error(err)
+                monsters.get_and_sync(doc.id, function (err, channel)
+                {
+                    handle_error(err)
+                    var channel = channel.end
+                    
+                    channel.on('error', handle_error)
+                    
+                    var syncdoc = null
+                    
+                    channel.on('pull', function (edits)
+                    {
+                        edits.forEach(function (edit)
+                        {
+                            syncdoc.pull(edit)
+                        })
+                    })
+                    
+                    channel.on('delete', function ()
+                    {
+                        syncdoc.deleted = true
+                    })
+                    
+                    var update_one = copy(doc)
+                    update_one.height = 555
+                    var update_two = copy(update_one)
+                    update_two.scariness = 111
+                    
+                    
+                    channel.on('initial', function (doc)
+                    {
+                        syncdoc = new SyncDocument(doc)
+                        
+                        async.series([
+                            function (done)
+                            {
+                                syncdoc.object = update_one
+                                syncdoc.push()
+                                channel.emit('pull', syncdoc.edits)
+                                done()
+                            },
+                            monsters.update.bind(monsters, update_two),
+                            monsters.get.bind(monsters, doc.id),
+                            monsters.delete.bind(monsters, doc.id)
+                        ],
+                        function (err, results)
+                        {
+                            handle_error(err)
+                            
+                            var updated_doc = results[results.length-2]
+                            expect(syncdoc.object).to.deep.equal(updated_doc)
+                            expect(updated_doc.id).to.equal(doc.id)
+                            expect(updated_doc.height).to.equal(555)
+                            expect(updated_doc.scariness).to.equal(111)
+                            expect(syncdoc.deleted).to.be.true
+                            
+                            channel.close()
+                            
+                            done()
+                        })
+                    })
+                })
+            }
+        )
+    })
+    
+    it('can sync with a list of items', function (done)
+    {
+        async.parallel([
+            monsters.create.bind(monsters, { name: 'tiny bat', height: 0.083, scariness: 0.01 }),
+            monsters.create.bind(monsters, { name: 'large bat', height: 0.3, scariness: 0.1 }),
+            monsters.create.bind(monsters, { name: 'minotaur', height: 1.6, scariness: 6 }),
+            monsters.create.bind(monsters, { name: 'kishi', height: 1.6, scariness: 7 }),
+            monsters.create.bind(monsters, { name: 'kraken', height: 14, scariness: 82.9 }),
+            monsters.create.bind(monsters, { name: 'werekraken', height: 14, scariness: 1000.002 })
+        ], function (err, result)
+        {
+            handle_error(err)
+            monsters.find_and_sync(
+                { start: 14, end: 20, index: 'height' },
+                function (err, channel)
+                {
+                    handle_error(err)
+                    
+                    var channel = channel.end
+                    channel.on('error', handle_error)
+                    
+                    var syncdocs = {},
+                        original_docs = []
+                    
+                    channel.on('pull', function (id, edits)
+                    {
+                        var syncdoc = syncdocs[id]
+                        
+                        edits.forEach(function (edit)
+                        {
+                            syncdoc.pull(edit)
+                        })
+                    })
+                    
+                    channel.on('insert', function (doc)
+                    {
+                        syncdocs[doc.id] = new SyncDocument(doc)
+                        original_docs.push(doc)
+                    })
+                    
+                    channel.on('delete', function (id)
+                    {
+                        syncdocs[id].deleted = true
+                    })
+                    
+                    channel.on('initial', function (results)
+                    {
+                        original_docs = sort_monsters(results)
+                        original_docs.forEach(function (doc)
+                        {
+                            syncdocs[doc.id] = new SyncDocument(doc)
+                        })
+                        
+                        var update_one = copy(original_docs[0]),
+                            update_two = copy(original_docs[1])
+                        
+                        update_one.scariness = 666
+                        update_two.height = 1
+                        
+                        async.series([
+                            monsters.create.bind(monsters, { name: 'not a monster', height: 0.0023, scariness: 0 }),
+                            monsters.create.bind(monsters, { name: 'impalerbot', height: 17, scariness: 77 }),
+                            function (done)
+                            {
+                                var syncdoc = syncdocs[update_one.id]
+                                syncdoc.object = update_one
+                                syncdoc.push()
+                                channel.emit('pull', update_one.id, syncdoc.edits)
+                                done()
+                            },
+                            monsters.update.bind(monsters, update_two),
+                            monsters.delete.bind(monsters, update_one.id),
+                            monsters.find.bind(monsters, { start: 14, end: 20, index: 'height' })
+                        ],
+                        function (err, results)
+                        {
+                            handle_error(err)
+                            
+                            var final_results = sort_monsters(results[results.length-1])
+                            
+                            expect(original_docs.length).to.equal(3)
+                            expect(final_results.length).to.equal(1)
+                            
+                            expect(original_docs[0].name).to.equal('kraken')
+                            expect(original_docs[0].scariness).to.equal(666)
+                            expect(syncdocs[original_docs[0].id].deleted).to.be.true
+                            
+                            expect(original_docs[1].name).to.equal('werekraken')
+                            expect(syncdocs[original_docs[1].id].deleted).to.be.true
+                            
+                            expect(original_docs[2].name).to.equal('impalerbot')
+                            expect(original_docs[2]).to.deep.equal(final_results[0])
+                            
+                            channel.close()
+                            done()
+                        })
+                    })
+                }
+            )
+        })
     })
 })

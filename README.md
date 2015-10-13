@@ -1,15 +1,15 @@
-# landho-crud
+# mergelive
 
 Create crud services using [landho](https://github.com/elishacook/landho), [rethinkdb](http://rethinkdb.com/) and [feelings](https://github.com/elishacook/feelings).
 
-There is a companion [client library](https://github.com/elishacook/landho-crud-client) that makes for a nice experience using these services.
+There is a companion [client library](https://github.com/elishacook/mergelive-client) that makes for a nice experience using these services.
 
 [![NPM version][1]][2]
 
 ## Install
 
 ```bash
-npm install landho landho-crud
+npm install landho mergelive
 ```
 
 ## Quick start
@@ -18,13 +18,13 @@ npm install landho landho-crud
     // Create a landho instance
 var api = require('landho')(),
     // Create a CRUD maker that connects to a rethinkdb database
-    crud = require('landho-crud')(api, { port: 28015 , db: 'somewhere' })
+    crud = require('mergelive')(api, { port: 28015 , db: 'somewhere' })
 
 // Define services using the crud() function
 crud(
 {
     // This will be the name of the service and the name
-    // of the rethinkdb table. landho-crud will create tables
+    // of the rethinkdb table. mergelive will create tables
     // on the fly
     name: 'robbers',
     
@@ -97,5 +97,5 @@ crud.init().then(function ()
 
 See the tests for more details.
 
-[1]: https://badge.fury.io/js/landho-crud.svg
-[2]: https://badge.fury.io/js/landho-crud
+[1]: https://badge.fury.io/js/mergelive.svg
+[2]: https://badge.fury.io/js/mergelive

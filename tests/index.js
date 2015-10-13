@@ -2,10 +2,7 @@
 
 var chai = require('chai'),
     sinon = require('sinon'),
-    sinon_chai = require('sinon-chai'),
-    Bluebird = require('bluebird')
-
-require('sinon-as-promised')(Bluebird)
+    sinon_chai = require('sinon-chai')
 
 chai.use(sinon_chai)
 global.expect = chai.expect

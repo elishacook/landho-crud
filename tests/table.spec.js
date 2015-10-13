@@ -13,7 +13,7 @@ var r = require('rethinkdb'),
     },
     copy = require('../lib/shallow-copy'),
     monsters = null,
-    SyncDocument = require('../lib/sync-document')
+    SyncDocument = require('sync-document')
 
 function handle_error(err)
 {

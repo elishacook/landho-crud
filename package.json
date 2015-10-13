@@ -1,6 +1,6 @@
 {
   "name": "landho-crud",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Quickly create landho services with data synchronization features",
   "main": "lib/index.js",
   "scripts": {
@@ -19,7 +19,8 @@
     "landho": "^0.3.0",
     "rethinkdb": "^2.1.1",
     "rethinkdb-init": "0.0.5",
-    "rethinkdbdash": "^2.1.9"
+    "rethinkdbdash": "^2.1.9",
+    "sync-document": "^0.1.0"
   },
   "devDependencies": {
     "async": "^1.4.2",

@@ -1,6 +1,6 @@
 {
   "name": "landho-crud",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Quickly create landho services with data synchronization features",
   "main": "lib/index.js",
   "scripts": {
@@ -14,7 +14,6 @@
   "license": "MIT",
   "dependencies": {
     "feelings": "^0.1.2",
-    "jiff": "^0.7.2",
     "jsondiffpatch": "^0.1.37",
     "landho": "^0.3.0",
     "rethinkdb": "^2.1.1",

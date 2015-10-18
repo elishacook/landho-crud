@@ -233,7 +233,7 @@ describe('Table', function ()
                             expect(history[1][0]).to.equal('update')
                             expect(history[1][1]).to.deep.equal(updated_doc)
                             expect(history[2][0]).to.equal('delete')
-                            expect(history[2][1]).to.deep.equal(updated_doc)
+                            expect(history[2][1]).to.equal(updated_doc.id)
                             
                             channel.close()
                             done()
@@ -335,10 +335,10 @@ describe('Table', function ()
                             expect(history[2][1].scariness).to.equal(update_one.scariness)
                             
                             expect(history[3][0]).to.equal('delete')
-                            expect(history[3][1].name).to.equal(update_two.name)
+                            expect(history[3][1]).to.equal(update_two.id)
                             
                             expect(history[4][0]).to.equal('delete')
-                            expect(history[4][1].name).to.equal(update_one.name)
+                            expect(history[4][1]).to.equal(update_one.id)
                             
                             channel.close()
                             done()
@@ -488,7 +488,7 @@ describe('Table', function ()
                                 var syncdoc = syncdocs[update_one.id]
                                 syncdoc.object = update_one
                                 syncdoc.push()
-                                channel.emit('pull', update_one.id, syncdoc.edits)
+                                channel.emit('pull', { id: update_one.id, edits: syncdoc.edits })
                                 done()
                             },
                             monsters.update.bind(monsters, update_two),

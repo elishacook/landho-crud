@@ -1,6 +1,6 @@
 {
   "name": "landho-crud",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Quickly create landho services with data synchronization features",
   "main": "lib/index.js",
   "scripts": {
